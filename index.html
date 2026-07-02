@@ -1,0 +1,2940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Copy Agent - Push & Notice Generator</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-primary: #0f0a1a;
+    --bg-secondary: #1a1030;
+    --bg-card: rgba(255, 255, 255, 0.04);
+    --bg-card-hover: rgba(255, 255, 255, 0.07);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.75);
+    --text-muted: rgba(255, 255, 255, 0.45);
+    --accent-purple: #a855f7;
+    --accent-pink: #ec4899;
+    --accent-gold: #fbbf24;
+    --accent-green: #10b981;
+    --accent-blue: #3b82f6;
+    --accent-orange: #f97316;
+    --gradient-main: linear-gradient(135deg, #a855f7 0%, #ec4899 100%);
+    --gradient-gold: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    --gradient-blue: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    --shadow-glow: 0 0 40px rgba(168, 85, 247, 0.3);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+      radial-gradient(circle at 20% 20%, rgba(168, 85, 247, 0.15) 0%, transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.12) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.05) 0%, transparent 60%);
+    z-index: -1;
+    animation: bgFloat 20s ease-in-out infinite;
+  }
+
+  @keyframes bgFloat {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(-2%, -2%) rotate(1deg); }
+  }
+
+  .app-container {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 20px 24px 40px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0 24px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: var(--gradient-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    box-shadow: var(--shadow-glow);
+  }
+
+  .logo-text h1 {
+    font-size: 19px;
+    font-weight: 700;
+    background: var(--gradient-main);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.3px;
+  }
+
+  .logo-text p {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-card);
+    padding: 4px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+  }
+
+  .nav-tab {
+    padding: 9px 22px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all 0.3s ease;
+    border: none;
+    background: transparent;
+  }
+
+  .nav-tab:hover {
+    color: var(--text-primary);
+  }
+
+  .nav-tab.active {
+    background: var(--gradient-main);
+    color: white;
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+  }
+
+  .page {
+    display: none;
+    animation: fadeInUp 0.5s ease;
+  }
+
+  .page.active {
+    display: block;
+  }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .generator-layout {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .input-card {
+    padding: 22px;
+    position: sticky;
+    top: 20px;
+  }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.2px;
+  }
+
+  .card-title .icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    background: var(--gradient-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 7px;
+  }
+
+  .form-label .required {
+    color: var(--accent-pink);
+    margin-left: 2px;
+  }
+
+  .form-input,
+  .form-textarea,
+  .form-select {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 13px;
+    transition: all 0.3s ease;
+    font-family: inherit;
+  }
+
+  .form-input:focus,
+  .form-textarea:focus,
+  .form-select:focus {
+    outline: none;
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .form-textarea {
+    resize: vertical;
+    min-height: 70px;
+    line-height: 1.55;
+  }
+
+  .tag-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .tag-item {
+    padding: 7px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    user-select: none;
+  }
+
+  .tag-item:hover {
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
+  }
+
+  .tag-item.selected {
+    background: var(--gradient-main);
+    border-color: transparent;
+    color: white;
+  }
+
+  .activity-main-types {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .activity-main-type {
+    flex: 1;
+    padding: 8px 12px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 2px solid rgba(59, 130, 246, 0.2);
+    border-radius: 8px;
+    font-size: 12px;
+    color: #93c5fd;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+  }
+
+  .activity-main-type:hover {
+    background: rgba(59, 130, 246, 0.2);
+  }
+
+  .activity-main-type.selected {
+    background: rgba(59, 130, 246, 0.3);
+    border-color: rgba(59, 130, 246, 0.6);
+    color: #bfdbfe;
+  }
+
+  .activity-sub-types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .activity-sub-type {
+    padding: 6px 11px;
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    border-radius: 6px;
+    font-size: 11.5px;
+    color: #d8b4fe;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .activity-sub-type:hover {
+    background: rgba(168, 85, 247, 0.2);
+  }
+
+  .activity-sub-type.selected {
+    background: rgba(168, 85, 247, 0.3);
+    border-color: rgba(168, 85, 247, 0.5);
+    color: #e9d5ff;
+  }
+
+  .duration-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .duration-input {
+    flex: 0 0 120px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .duration-unit {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .task-preview {
+    font-size: 12px;
+    color: var(--accent-purple);
+    background: rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.15);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-family: 'SF Mono', Monaco, monospace;
+  }
+
+  .reward-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .reward-option {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition: all 0.3s ease;
+  }
+
+  .reward-option:has(.reward-toggle:checked) {
+    border-color: rgba(168, 85, 247, 0.4);
+    background: rgba(168, 85, 247, 0.05);
+  }
+
+  .reward-option-header {
+    padding: 10px 12px;
+    cursor: pointer;
+  }
+
+  .reward-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  .reward-checkbox input[type="checkbox"],
+  .reward-sub-checkbox input[type="radio"] {
+    accent-color: var(--accent-purple);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .reward-icon {
+    font-size: 15px;
+  }
+
+  .reward-name {
+    font-weight: 500;
+  }
+
+  .reward-config {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 12px;
+  }
+
+  .reward-toggle:checked ~ .reward-config,
+  .reward-option:has(.reward-toggle:checked) .reward-config {
+    max-height: 200px;
+    padding: 0 12px 12px;
+  }
+
+  .reward-config-static {
+    max-height: 0;
+  }
+
+  .reward-option:has(.reward-toggle:checked) .reward-config-static {
+    max-height: 50px;
+    padding: 0 12px 12px;
+  }
+
+  .reward-sub-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .reward-sub-option:last-child {
+    margin-bottom: 0;
+  }
+
+  .reward-sub-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .reward-input {
+    flex: 1;
+    min-width: 100px;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+
+  .reward-input-hint {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .reward-static-hint {
+    font-size: 12px;
+    color: var(--accent-green);
+  }
+
+  .keyword-hints {
+    margin-top: 12px;
+    padding: 11px;
+    background: rgba(251, 191, 36, 0.07);
+    border: 1px solid rgba(251, 191, 36, 0.18);
+    border-radius: var(--radius-sm);
+    display: none;
+  }
+
+  .keyword-hints.show {
+    display: block;
+    animation: fadeInUp 0.3s ease;
+  }
+
+  .keyword-hints-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-gold);
+    margin-bottom: 7px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  .keyword-tag {
+    display: inline-block;
+    padding: 3px 9px;
+    background: rgba(251, 191, 36, 0.14);
+    border-radius: 4px;
+    font-size: 11px;
+    color: #fcd34d;
+    margin: 2px 4px 2px 0;
+    font-weight: 500;
+  }
+
+  .generation-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 12px;
+  }
+
+  .count-btns {
+    display: flex;
+    gap: 4px;
+  }
+
+  .count-btn {
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .count-btn:hover {
+    border-color: var(--accent-purple);
+  }
+
+  .count-btn.active {
+    background: var(--gradient-main);
+    border-color: transparent;
+    color: white;
+  }
+
+  .generate-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: var(--gradient-main);
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 4px;
+    position: relative;
+    overflow: hidden;
+    letter-spacing: 0.2px;
+  }
+
+  .generate-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(168, 85, 247, 0.5);
+  }
+
+  .generate-btn:active {
+    transform: translateY(0);
+  }
+
+  .generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .generate-btn.loading {
+    pointer-events: none;
+  }
+
+  .generate-btn.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .results-section {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    padding-bottom: 100px;
+  }
+
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .results-title {
+    font-size: 17px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: -0.2px;
+  }
+
+  .results-title .badge {
+    padding: 3px 11px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  .results-title.push .badge {
+    background: linear-gradient(135deg, #ec4899 0%, #f43f5e 100%);
+  }
+
+  .results-title.notice .badge {
+    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  }
+
+  .results-count {
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .text-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .text-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .text-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--gradient-main);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .text-card:hover {
+    border-color: rgba(168, 85, 247, 0.4);
+    transform: translateX(2px);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+  }
+
+  .text-card:hover::before {
+    opacity: 1;
+  }
+
+  .text-card.push::before {
+    background: linear-gradient(180deg, #ec4899, #f43f5e);
+  }
+
+  .text-card.notice::before {
+    background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+  }
+
+  .text-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    gap: 10px;
+  }
+
+  .text-card-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  .text-card-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+  }
+
+  .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+  }
+
+  .icon-btn.copy:hover {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--accent-green);
+  }
+
+  .icon-btn.refresh:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--accent-blue);
+  }
+
+  .icon-btn.delete:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+
+  .text-card-body {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+
+  .text-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .text-card-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .meta-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .meta-tag.hook {
+    background: rgba(251, 191, 36, 0.1);
+    color: #fcd34d;
+  }
+
+  .meta-tag.audience {
+    background: rgba(59, 130, 246, 0.1);
+    color: #93c5fd;
+  }
+
+  .meta-tag.logic {
+    background: rgba(168, 85, 247, 0.1);
+    color: #c4b5fd;
+  }
+
+  .checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+  }
+
+  .checkbox-wrapper input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent-purple);
+  }
+
+  .checkbox-wrapper span {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--text-muted);
+  }
+
+  .empty-state-icon {
+    font-size: 42px;
+    margin-bottom: 14px;
+    opacity: 0.5;
+  }
+
+  .empty-state p {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .export-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 22px;
+    background: rgba(26, 16, 48, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    animation: slideUp 0.5s ease;
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translate(-50%, 16px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
+  .export-bar.hidden {
+    display: none;
+  }
+
+  .export-info {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+  }
+
+  .export-info strong {
+    color: var(--accent-gold);
+    font-weight: 600;
+  }
+
+  .export-actions {
+    display: flex;
+ gap: 8px;
+  }
+
+  .export-btn {
+    padding: 9px 18px;
+    border: none;
+ border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .export-btn.primary {
+    background: var(--gradient-gold);
+    color: #1a1030;
+  }
+
+  .export-btn.primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(251, 191, 36, 0.4);
+  }
+
+  .export-btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+  }
+
+  .export-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .select-all-btn {
+    padding: 7px 14px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .select-all-btn:hover {
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
+  }
+
+  .cases-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+
+  .cases-title {
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+
+  .cases-title span {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 13px;
+    margin-left: 8px;
+  }
+
+  .cases-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .btn {
+    padding: 9px 18px;
+    border: none;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .btn-primary {
+    background: var(--gradient-main);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+  }
+
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+  }
+
+  .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .cases-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 18px;
+  }
+
+  .case-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .case-card:hover {
+    border-color: rgba(168, 85, 247, 0.4);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  }
+
+  .case-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .case-name {
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .case-tags {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .case-tag {
+    padding: 3px 9px;
+    background: rgba(168, 85, 247, 0.14);
+    border-radius: 4px;
+    font-size: 10.5px;
+    color: #c4b5fd;
+    font-weight: 500;
+  }
+
+  .case-preview {
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 7px;
+    margin-bottom: 8px;
+  }
+
+  .case-preview-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .case-preview-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+    line-height: 1.4;
+  }
+
+  .case-preview-text {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .case-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 10px;
+  }
+
+  .case-date {
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+
+  .case-card-actions {
+    display: flex;
+    gap: 4px;
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.show {
+    display: flex;
+    animation: fadeIn 0.3s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-width: 640px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: modalIn 0.3s ease;
+  }
+
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .modal-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .modal-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .modal-close {
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+  }
+
+  .modal-body {
+    padding: 22px;
+  }
+
+  .modal-footer {
+    padding: 14px 22px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    background: rgba(16, 185, 129, 0.95);
+    color: white;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 2000;
+    transform: translateX(120%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    box-shadow: 0 10px 40px rgba(16, 185, 129, 0.4);
+  }
+
+  .toast.show {
+    transform: translateX(0);
+  }
+
+  .toast.error {
+    background: rgba(239, 68, 68, 0.95);
+    box-shadow: 0 10px 40px rgba(239, 68, 68, 0.4);
+  }
+
+  .skeleton-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 16px 18px;
+    overflow: hidden;
+  }
+
+  .skeleton-line {
+    height: 13px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.05) 75%);
+    background-size: 200% 100%;
+    border-radius: 4px;
+    margin-bottom: 9px;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .skeleton-line.short { width: 35%; }
+  .skeleton-line.medium { width: 65%; }
+  .skeleton-line.long { width: 90%; }
+
+  .section-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 18px 0;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  @media (max-width: 1100px) {
+    .generator-layout {
+      grid-template-columns: 1fr;
+    }
+    .input-card {
+      position: static;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .app-container {
+      padding: 14px 16px 30px;
+    }
+    header {
+      flex-direction: column;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .nav-tabs {
+      width: 100%;
+    }
+    .nav-tab {
+      flex: 1;
+      text-align: center;
+    }
+    .cases-header {
+      flex-direction: column;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .export-bar {
+      width: calc(100% - 32px);
+      flex-direction: column;
+      gap: 10px;
+    }
+    .form-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">✨</div>
+      <div class="logo-text">
+        <h1>Live Copy Agent</h1>
+        <p>Smart Push & Notice Copy Generator</p>
+      </div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-page="generator">🎯 Generator</button>
+      <button class="nav-tab" data-page="cases">📚 Case Library</button>
+    </div>
+  </header>
+
+  <div class="page active" id="page-generator">
+    <div class="generator-layout">
+      <div class="card input-card">
+        <div class="card-title">
+          <span class="icon">📋</span>
+          Activity Setup
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Activity Name<span class="required">*</span></label>
+          <input type="text" class="form-input" id="activityName" placeholder="e.g. Soccer Season Go-Live Event">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Activity Type</label>
+          <div class="activity-main-types" id="activityMainTypes">
+            <div class="activity-main-type" data-type="effects_activity">🎭 Effects Activity</div>
+            <div class="activity-main-type" data-type="cash_promotion">💰 Cash Promotion</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Task Requirement<span class="required">*</span></label>
+          <div class="duration-input-row">
+            <input type="number" class="form-input duration-input" id="liveDuration" placeholder="10" min="1">
+            <span class="duration-unit">minutes</span>
+          </div>
+          <div class="task-preview" id="taskPreview">Go LIVE for 10 mins</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Reward Rules<span class="required">*</span></label>
+          <div class="reward-options">
+            <div class="reward-option">
+              <div class="reward-option-header">
+                <label class="reward-checkbox">
+                  <input type="checkbox" id="rewardDiamondPool" class="reward-toggle">
+                  <span class="reward-icon">💎</span>
+                  <span class="reward-name">Diamond Pool</span>
+                </label>
+              </div>
+              <div class="reward-config" id="diamondPoolConfig">
+                <input type="text" class="form-input reward-input" id="diamondPoolAmount" placeholder="e.g. 1000 or 30K">
+                <span class="reward-input-hint">Diamond pool amount</span>
+              </div>
+            </div>
+            <div class="reward-option">
+              <div class="reward-option-header">
+                <label class="reward-checkbox">
+                  <input type="checkbox" id="rewardLeaderboard" class="reward-toggle">
+                  <span class="reward-icon">🏆</span>
+                  <span class="reward-name">Leaderboard</span>
+                </label>
+              </div>
+              <div class="reward-config" id="leaderboardConfig">
+                <div class="reward-sub-option">
+                  <label class="reward-sub-checkbox">
+                    <input type="radio" name="leaderboardType" value="diamonds" checked>
+                    <span>Top 1 wins diamonds</span>
+                  </label>
+                  <input type="text" class="form-input reward-input" id="leaderboardDiamonds" placeholder="e.g. 1000">
+                </div>
+                <div class="reward-sub-option">
+                  <label class="reward-sub-checkbox">
+                    <input type="radio" name="leaderboardType" value="traffic">
+                    <span>Top 1 wins traffic boost</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="reward-option">
+              <div class="reward-option-header">
+                <label class="reward-checkbox">
+                  <input type="checkbox" id="rewardLuckyDraw" class="reward-toggle">
+                  <span class="reward-icon">🎰</span>
+                  <span class="reward-name">Lucky Draw</span>
+                </label>
+              </div>
+              <div class="reward-config" id="luckyDrawConfig">
+                <div class="reward-sub-option">
+                  <label class="reward-sub-checkbox">
+                    <input type="radio" name="drawType" value="gift_card" checked>
+                    <span>Gift card prize</span>
+                  </label>
+                  <input type="text" class="form-input reward-input" id="drawGiftCard" placeholder="e.g. 20K VND">
+                </div>
+                <div class="reward-sub-option">
+                  <label class="reward-sub-checkbox">
+                    <input type="radio" name="drawType" value="diamonds">
+                    <span>Diamond prize</span>
+                  </label>
+                  <input type="text" class="form-input reward-input" id="drawDiamonds" placeholder="e.g. 500">
+                </div>
+              </div>
+            </div>
+            <div class="reward-option">
+              <div class="reward-option-header">
+                <label class="reward-checkbox">
+                  <input type="checkbox" id="rewardTraffic" class="reward-toggle">
+                  <span class="reward-icon">📈</span>
+                  <span class="reward-name">Traffic Boost</span>
+                </label>
+              </div>
+              <div class="reward-config reward-config-static" id="trafficConfig">
+                <span class="reward-static-hint">✨ Traffic boost will be highlighted in copy</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Target Audience</label>
+          <div class="tag-group" id="audienceTags">
+            <div class="tag-item" data-value="All Creators">All Creators</div>
+            <div class="tag-item" data-value="New Creators">New Creators</div>
+            <div class="tag-item" data-value="Inactive Creators">Inactive Creators</div>
+            <div class="tag-item" data-value="Active Creators">Active Creators</div>
+            <div class="tag-item" data-value="Top Creators">Top Creators</div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Emoji Theme</label>
+          <div class="tag-group" id="emojiTags">
+            <div class="tag-item" data-value="default">🎯 Default</div>
+            <div class="tag-item" data-value="sports">⚽️ Sports</div>
+            <div class="tag-item" data-value="music">🎵 Music</div>
+            <div class="tag-item" data-value="festival">🎉 Festival</div>
+            <div class="tag-item" data-value="holiday">🎄 Holiday</div>
+            <div class="tag-item" data-value="love">💕 Love</div>
+            <div class="tag-item" data-value="halloween">🎃 Halloween</div>
+            <div class="tag-item" data-value="casino">🎰 Casino</div>
+          </div>
+        </div>
+
+        <div class="keyword-hints" id="keywordHints">
+          <div class="keyword-hints-title">✨ DETECTED KEY HOOKS</div>
+          <div id="keywordTags"></div>
+        </div>
+
+        <div class="generation-options">
+          <span style="font-size: 12.5px; color: var(--text-secondary);">Generate count</span>
+          <div class="count-btns" id="countBtns">
+            <button class="count-btn" data-count="5">5</button>
+            <button class="count-btn active" data-count="10">10</button>
+            <button class="count-btn" data-count="15">15</button>
+            <button class="count-btn" data-count="20">20</button>
+          </div>
+        </div>
+
+        <button class="generate-btn" id="generateBtn">
+          <span class="btn-text">🚀 Generate Copy</span>
+        </button>
+      </div>
+
+      <div class="results-section">
+        <div>
+          <div class="results-header">
+            <div class="results-title push">
+              📱 Push Notifications
+              <span class="badge">Push</span>
+            </div>
+            <div class="results-count" id="pushCount">0 items</div>
+          </div>
+          <div class="text-list" id="pushResults">
+            <div class="empty-state">
+              <div class="empty-state-icon">📝</div>
+              <p>Enter activity details and click generate<br>Smart, eye-catching push copy will appear here</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="results-header">
+            <div class="results-title notice">
+              💌 In-App Notices
+              <span class="badge">Notice</span>
+            </div>
+            <div class="results-count" id="noticeCount">0 items</div>
+          </div>
+          <div class="text-list" id="noticeResults">
+            <div class="empty-state">
+              <div class="empty-state-icon">✉️</div>
+              <p>Enter activity details and click generate<br>Detailed in-app notice copy will appear here</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" id="page-cases">
+    <div class="cases-header">
+      <div class="cases-title">
+        📚 Case Library
+        <span id="casesCount">0 cases</span>
+      </div>
+      <div class="cases-actions">
+        <button class="btn btn-secondary" onclick="importCases()">
+          📥 Import
+        </button>
+        <button class="btn btn-primary" onclick="openCaseModal()">
+          ➕ Add Case
+        </button>
+      </div>
+    </div>
+
+    <div class="cases-grid" id="casesGrid">
+      <div class="empty-state" style="grid-column: 1/-1;">
+        <div class="empty-state-icon">📖</div>
+        <p>No cases yet. Add some high-performing examples!<br>More cases = more tailored copy generation</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="export-bar hidden" id="exportBar">
+  <div class="export-info">
+    <strong id="selectedCount">0</strong> items selected
+  </div>
+  <button class="select-all-btn" onclick="toggleSelectAll()">Select All / Toggle</button>
+  <div class="export-actions">
+    <button class="export-btn secondary" onclick="exportCSV()">📄 CSV</button>
+    <button class="export-btn primary" onclick="exportExcel()">📊 Excel</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="caseModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Add Case</div>
+      <button class="modal-close" onclick="closeCaseModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Activity Name<span class="required">*</span></label>
+          <input type="text" class="form-input" id="caseActivityName" placeholder="Activity name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Activity Type</label>
+          <input type="text" class="form-input" id="caseActivityType" placeholder="e.g. Effects, Duration, Diamond Pool...">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Task Requirement</label>
+        <textarea class="form-textarea" id="caseTaskRequirement" placeholder="Task requirements..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Reward Rules</label>
+        <textarea class="form-textarea" id="caseRewardRule" placeholder="Reward rules..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Target Audience</label>
+        <input type="text" class="form-input" id="caseAudience" placeholder="e.g. All Streamers, New Streamers">
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="form-group">
+        <label class="form-label">Push Copy (Title | Content, one per line)<span class="required">*</span></label>
+        <textarea class="form-textarea" id="casePushTexts" placeholder="Format: Title | Content&#10;⚽ Go LIVE to share 30K Diamonds! | Tap to use effects and start your LIVE to claim rewards!&#10;🎁 Win 20K VND! | Just go LIVE with soccer effects for a chance to win!" style="min-height: 140px;"></textarea>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Use "|" to separate title and content. One entry per line.</div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="form-group">
+        <label class="form-label">Notice Copy (Title | Content, one per line)<span class="required">*</span></label>
+        <textarea class="form-textarea" id="caseNoticeTexts" placeholder="Format: Title | Content&#10;🤑 Easy Diamonds! Just use Soccer Effects! | Soccer season is here! Go LIVE with any of our 3 featured soccer effects...&#10;💎 Share 30K Diamonds & win 20K VND! | Go LIVE using soccer effects. You can share a massive prize pool..." style="min-height: 140px;"></textarea>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">Use "|" to separate title and content. One entry per line.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Rating (optional)</label>
+        <div class="tag-group" id="ratingTags">
+          <div class="tag-item" data-rating="1">⭐</div>
+          <div class="tag-item" data-rating="2">⭐⭐</div>
+          <div class="tag-item" data-rating="3">⭐⭐⭐</div>
+          <div class="tag-item" data-rating="4">⭐⭐⭐⭐</div>
+          <div class="tag-item" data-rating="5">⭐⭐⭐⭐⭐</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCaseModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCase()">Save</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept=".json,.xlsx,.xls" style="display:none" onchange="handleImportFile(event)">
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== STORAGE ====================
+const STORAGE_KEY = 'live_copy_cases_v2';
+
+function loadCases() {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveCases(cases) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
+}
+
+// ==================== KEYWORD EXTRACTION ====================
+function extractKeywords(taskReq, rewardRule) {
+  const keywords = [];
+  const text = (taskReq || '') + ' ' + (rewardRule || '');
+
+  const durationMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h|分钟|小时)/i);
+  if (durationMatch) {
+    const num = durationMatch[1];
+    const unit = durationMatch[0].toLowerCase().includes('min') || durationMatch[0].includes('分钟') 
+      ? (parseInt(durationMatch[1]) + 'min') 
+      : (num + 'h');
+    keywords.push({ type: 'Duration', value: unit, display: durationMatch[0] });
+  }
+  const minuteMatch = text.match(/(\d+)\s*(?:minutes?|mins?|min)/i);
+  if (minuteMatch) {
+    keywords.push({ type: 'Duration', value: minuteMatch[1] + 'min', display: minuteMatch[0] });
+  }
+
+  const diamondPatterns = [
+    /(\d{1,3}(?:[,\d]+)?)\s*(?:diamonds?|dims?|💎|钻石)/gi,
+    /(\d+K)\s*(?:diamonds?|dims?|钻石)/gi
+  ];
+  diamondPatterns.forEach(pattern => {
+    const matches = text.matchAll(pattern);
+    for (const m of matches) {
+      keywords.push({ type: 'Diamonds', value: m[1] + ' diamonds', display: m[0] });
+    }
+  });
+
+  const cashPatterns = [
+    /(\d{1,3}(?:[,\d]+)?)\s*(?:VND|vnd|đồng|vnđ)/gi,
+    /(\d+K)\s*(?:VND|vnd)/gi,
+    /(\$\d+(?:\.\d+)?)/g,
+    /(\d+(?:\.\d+)?)\s*(?:usd|USD|\$)/g,
+    /(\d+)\s*(?:yuan|元|rmb|RMB)/gi
+  ];
+  cashPatterns.forEach(pattern => {
+    const matches = text.matchAll(pattern);
+    for (const m of matches) {
+      keywords.push({ type: 'Cash', value: m[0], display: m[0] });
+    }
+  });
+
+  const giftMatch = text.match(/gift\s*card|card\s*reward|礼品卡|礼物卡/gi);
+  if (giftMatch) {
+    keywords.push({ type: 'Gift Card', value: 'gift card', display: 'gift card' });
+  }
+
+  const lotteryMatch = text.match(/lucky\s*draw|draw\s*chance|抽奖|幸运抽奖/gi);
+  if (lotteryMatch) {
+    keywords.push({ type: 'Lucky Draw', value: 'lucky draw', display: 'lucky draw' });
+  }
+
+  const trafficMatch = text.match(/traffic|boost|exposure|流量|曝光/gi);
+  if (trafficMatch) {
+    keywords.push({ type: 'Traffic', value: 'traffic boost', display: 'traffic boost' });
+  }
+
+  const unique = [];
+  const seen = new Set();
+  keywords.forEach(k => {
+    const key = k.type + ':' + k.value;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(k);
+    }
+  });
+
+  return unique;
+}
+
+function getPrimaryHook(keywords) {
+  const priority = ['Diamonds', 'Cash', 'Duration', 'Gift Card', 'Lucky Draw', 'Traffic'];
+  for (const p of priority) {
+    const found = keywords.find(k => k.type === p);
+    if (found) return found;
+  }
+  return keywords[0] || { type: 'Reward', value: 'amazing rewards', display: 'rewards' };
+}
+
+function getRewardVerb(hookType) {
+  if (hookType === 'Diamonds') return 'share';
+  if (hookType === 'Cash' || hookType === 'Gift Card') return 'win';
+  if (hookType === 'Duration') return 'earn';
+  return 'earn';
+}
+
+function updateKeywordHints() {
+  const taskReq = document.getElementById('taskRequirement').value;
+  const rewardRule = document.getElementById('rewardRule').value;
+  const keywords = extractKeywords(taskReq, rewardRule);
+  const hintsDiv = document.getElementById('keywordHints');
+  const tagsDiv = document.getElementById('keywordTags');
+
+  if (keywords.length > 0) {
+    hintsDiv.classList.add('show');
+    tagsDiv.innerHTML = keywords.map(k => 
+      `<span class="keyword-tag">${k.type}: ${k.display}</span>`
+    ).join('');
+  } else {
+    hintsDiv.classList.remove('show');
+  }
+}
+
+// ==================== COPY GENERATION ENGINE ====================
+
+const EMOJI_THEMES = {
+  default: ['🎁', '🎙️', '🏆', '✨', '🤳', '🌌', '💬', '💎', '🚀', '⏰', '📈', '🎉', '🔥', '💰', '🎨', '🤑', '🌟', '📣'],
+  sports: ['⚽️', '🏀', '🎾', '🏆', '🥅', '⚡', '💪', '🎯', '🔥', '�', '🚀', '🏅'],
+  music: ['🎵', '🎶', '🎤', '🎧', '🎸', '🎹', '🎺', '🎻', '✨', '🔥', '🎧', '💫'],
+  festival: ['🎉', '🎊', '🎈', '🎆', '🎇', '✨', '🌟', '💫', '🎁', '🎀', '🏮', '🎪'],
+  holiday: ['🎄', '🎅', '❄️', '🌟', '🎁', '🎊', '🎉', '🎀', '🎶', '✨', '🎻', '🧣'],
+  love: ['💕', '💘', '💖', '💗', '💝', '💞', '💟', '🌹', '💎', '🎁', '✨', '💫'],
+  halloween: ['🎃', '👻', '🕷️', '�️', '🦇', '💀', '☠️', '🧛', '🧟', '🌙', '🕯️', '🎭'],
+  casino: ['🎰', '🎲', '🃏', '💰', '💎', '🤑', '🎁', '🎊', '🎉', '🎈', '🏆', '🎯']
+};
+
+const PUSH_TITLE_PATTERNS = [
+  { logic: 'quantified', template: '{emoji} Go LIVE to share {reward_value}!' },
+  { logic: 'quantified_effects', template: '{emoji} Go LIVE with {theme} effects to share {reward_value}!' },
+  { logic: 'urgency', template: '{emoji} Your {reward_type} is waiting for you!' },
+  { logic: 'value_proposition', template: '{emoji} Step 1: LIVE. Step 2: Earn {reward_value}!' },
+  { logic: 'fomo', template: '{emoji} Don\'t miss out! {reward_value} up for grabs!' },
+  { logic: 'benefit_first', template: '{emoji} {reward_value}! Just {action}!' },
+  { logic: 'curiosity', template: '{emoji} Want {reward_value}? Go LIVE now!' },
+  { logic: 'social_proof', template: '{emoji} Everyone\'s joining! {reward_value} pool!' },
+  { logic: 'exclusive', template: '{emoji} Exclusive: {reward_value} for you!' },
+  { logic: 'simplicity', template: '{emoji} One tap to {action_short} & earn {reward_value}!' },
+  { logic: 'time_sensitive', template: '{emoji} Today only! {action} for {reward_value}!' },
+  { logic: 'effects', template: '{emoji} Try {effect_count} {theme} effects & go LIVE to win!' },
+  { logic: 'challenge', template: '{emoji} {theme} challenge! {action} to win!' },
+  { logic: 'no_topic', template: '{emoji} No topic? Wear {theme} gear & LIVE to win!' },
+  { logic: 'support', template: '{emoji} Support your team! LIVE with {theme} effects to win!' },
+  { logic: 'tonight', template: '{emoji} LIVE tonight with {theme} to win {reward_value}!' },
+  { logic: 'chat', template: '{emoji} Chat {theme} with fans & share {reward_value}!' },
+  { logic: 'ready', template: '{emoji} Ready for {theme}? Go LIVE to share {reward_value}!' },
+  { logic: 'easy', template: '{emoji} Easy {reward_type}! Just {action}!' },
+  { logic: 'gift_card', template: '{emoji} Use {theme} effects & go LIVE to win {secondary_reward}!' },
+  { logic: 'double_reward', template: '{emoji} Double rewards! {reward_value} + {secondary_reward}!' },
+  { logic: 'activity_name', template: '{emoji} Join {activity_name}! Go LIVE to share {reward_value}!' },
+  { logic: 'activity_promo', template: '{emoji} {activity_name} is here! {action} to win!' },
+];
+
+const PUSH_CONTENT_PATTERNS = [
+  'Tap to {action_short} and start your LIVE to claim rewards!',
+  'Just {action_short} for a chance to win amazing rewards!',
+  'Join the fun! Go LIVE to {reward_action}!',
+  'Choose from {effect_count} cool {theme} effects and go LIVE to unlock rewards!',
+  'One tap to {action_short} and {reward_action} instantly!',
+  'Don\'t miss out! Go LIVE tonight with {theme} effects to win big!',
+  'Connect with your fans on LIVE about {theme} and share {reward_value}!',
+  'Put on {theme} gear, chat with fans, and win easily!',
+  'Show love for your favorite team on LIVE and win {reward_value}!',
+  'The {theme} is here! Go LIVE now to {reward_action}!',
+  'Ready to win? Just {action_short} and start your LIVE!',
+  'Get in on the action! {action_short} and start earning today!',
+  'Your fans are waiting! Go LIVE with {theme} effects now!',
+];
+
+const NOTICE_TITLE_PATTERNS = [
+  { logic: 'benefit', template: '{emoji} Easy {reward_type}! Just {action}!' },
+  { logic: 'exclusive', template: '{emoji} {theme} exclusive! LIVE to win {reward_value}!' },
+  { logic: 'diamond_pool', template: '{emoji} Share {reward_value} & win {secondary_reward}! Go LIVE now!' },
+  { logic: 'choice', template: '{emoji} Choose 1 of {effect_count} {theme} effects & LIVE to share!' },
+  { logic: 'question', template: '{emoji} No topic on LIVE? Let\'s chat about {theme}!' },
+  { logic: 'pride', template: '{emoji} Show your pride! Go LIVE with {theme} effects now!' },
+  { logic: 'gear', template: '{emoji} Wear {theme} effects, LIVE & share {reward_value}!' },
+  { logic: 'simple', template: '{emoji} Pick 1 {theme} effect, go LIVE & share {reward_value}!' },
+  { logic: 'tonight', template: '{emoji} Go LIVE tonight! Show support & win {reward_value}!' },
+  { logic: 'gift', template: '{emoji} Use 1 of {effect_count} {theme} effects to LIVE & win!' },
+  { logic: 'double', template: '{emoji} Double rewards! {reward_value} + {secondary_reward}!' },
+  { logic: 'massive', template: '{emoji} Massive {reward_type} pool! {action} to join!' },
+  { logic: 'activity_name', template: '{emoji} {activity_name}! Go LIVE to share {reward_value}!' },
+  { logic: 'activity_call', template: '{emoji} Join {activity_name} now! Go LIVE & win!' },
+];
+
+const NOTICE_INTROS = [
+  'The {theme} is here!',
+  'Celebrate the {theme}!',
+  'Ready for double rewards?',
+  'Pick your style!',
+  'Interact with your fans about {theme}!',
+  'Show your support for {theme}!',
+  'Put on your {theme} gear on LIVE!',
+  'It\'s {theme} carnival time!',
+  'Tonight is the night!',
+  'Want to win big? It\'s simple!',
+  'Great news for all creators!',
+  'We\'ve got something special for you!',
+  '{activity_name} is here!',
+  'Join {activity_name} today!',
+];
+
+const NOTICE_MIDDLES = {
+  effects: [
+    'Go LIVE with any of our {effect_count} featured {theme} effects: {effect_list}.',
+    'Start your LIVE using {effect_list} effects.',
+    'Simply go LIVE with one of our {theme} effects: {effect_list}.',
+    'Choose from {effect_count} amazing {theme} effects and hit that go-live button.',
+  ],
+  general: [
+    'Just go LIVE to participate in {activity_name}.',
+    'Simply start your LIVE to join {activity_name}.',
+    'Go LIVE now to complete the task and claim rewards.',
+    'Start your LIVE and complete simple tasks to earn rewards.',
+    'Join {activity_name} by going LIVE for {duration_value}.',
+  ]
+};
+
+const NOTICE_REWARDS = [
+  'You will instantly join the pool to share {reward_value} and get a lucky draw chance to win {secondary_reward}!',
+  'You can share a massive prize pool of {reward_value} and unlock a lucky draw for {secondary_reward}.',
+  'You\'ll automatically qualify to share {reward_value} and enter the draw to win {secondary_reward}!',
+  'This simple task lets you share {reward_value} and gives you a lucky draw ticket to win {secondary_reward}.',
+  'Plus, you will share {reward_value} and get a chance to draw {secondary_reward}!',
+];
+
+const NOTICE_CTAS = [
+  'Tap to start now!',
+  'Don\'t miss this exclusive event!',
+  'Start your {theme} LIVE now!',
+  'What are you waiting for?',
+  'Join the fun today!',
+  'Your rewards are waiting!',
+  'Go LIVE now and claim your share!',
+];
+
+function getRandomItem(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function shuffleArray(arr) {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function detectTheme(activityName, taskReq, rewardRule) {
+  const text = (activityName + ' ' + taskReq + ' ' + rewardRule).toLowerCase();
+  
+  if (text.includes('soccer') || text.includes('football') || text.includes('world cup') || text.includes('足球') || text.includes('世界杯')) {
+    return { name: 'Soccer Season', short: 'soccer', effect_names: ['Face Paint', 'Soccer Sunglasses', 'Soccer Hat'] };
+  }
+  if (text.includes('music') || text.includes('音乐节') || text.includes('sing')) {
+    return { name: 'Music Festival', short: 'music', effect_names: ['Mic Effect', 'Headphones', 'Stage Lights'] };
+  }
+  if (text.includes('christmas') || text.includes('xmas') || text.includes('圣诞')) {
+    return { name: 'Christmas', short: 'christmas', effect_names: ['Santa Hat', 'Snow Effect', 'Reindeer Ears'] };
+  }
+  if (text.includes('new year') || text.includes('新年') || text.includes('元旦')) {
+    return { name: 'New Year', short: 'new year', effect_names: ['Fireworks', 'Party Hat', 'Confetti'] };
+  }
+  if (text.includes('valentine') || text.includes('情人节')) {
+    return { name: 'Valentine\'s Day', short: 'valentine', effect_names: ['Heart Glasses', 'Cupid Bow', 'Rose Filter'] };
+  }
+  if (text.includes('halloween') || text.includes('万圣节')) {
+    return { name: 'Halloween', short: 'halloween', effect_names: ['Pumpkin Mask', 'Witch Hat', 'Spooky Filter'] };
+  }
+  
+  const effectCount = (text.match(/effect|特效/gi) || []).length > 0;
+  if (effectCount) {
+    return { name: 'Special Effects', short: 'special effects', effect_names: ['Cool Filter', 'Fun Mask', 'Magic Frame'] };
+  }
+  
+  return { name: 'Live Event', short: 'this event', effect_names: ['Fun Effects'] };
+}
+
+function extractEffectCount(text, theme) {
+  const match = text.match(/(\d+)\s*(?:effects?|特效|个)/i);
+  if (match) return match[1];
+  if (theme.effect_names && theme.effect_names.length > 1) return theme.effect_names.length;
+  return '3';
+}
+
+function getDiamondValue(keywords) {
+  const diamond = keywords.find(k => k.type === 'Diamonds');
+  return diamond ? diamond.value : 'massive diamond rewards';
+}
+
+function getCashValue(keywords) {
+  const cash = keywords.find(k => k.type === 'Cash');
+  return cash ? cash.value : 'amazing gift cards';
+}
+
+function getDurationValue(keywords) {
+  const dur = keywords.find(k => k.type === 'Duration');
+  return dur ? dur.value : 'a short LIVE session';
+}
+
+function getActionPhrase(activityTypes, theme, isEffectsActivity) {
+  if (isEffectsActivity) {
+    return 'use ' + theme.short + ' effects & go LIVE';
+  }
+  if (activityTypes.includes('duration')) {
+    return 'go LIVE & stay on air';
+  }
+  if (activityTypes.includes('diamond_pool')) {
+    return 'go LIVE & join the pool';
+  }
+  return 'go LIVE now';
+}
+
+function getShortAction(activityTypes, theme, isEffectsActivity) {
+  if (isEffectsActivity) {
+    return 'use ' + theme.short + ' effects';
+  }
+  return 'go LIVE';
+}
+
+function getRewardAction(keywords) {
+  const diamond = keywords.find(k => k.type === 'Diamonds');
+  const cash = keywords.find(k => k.type === 'Cash');
+  
+  if (diamond && cash) {
+    return 'share ' + diamond.value + ' and win ' + cash.value;
+  }
+  if (diamond) {
+    return 'share ' + diamond.value;
+  }
+  if (cash) {
+    return 'win ' + cash.value;
+  }
+  return 'earn amazing rewards';
+}
+
+function generatePush(activityName, duration, rewardConfig, audience, activityTypes, emojiTheme, cases, usedLogics = []) {
+  const isEffectsActivity = activityTypes.includes('effects_activity');
+  const theme = detectTheme(activityName, '', '');
+  const emojis = EMOJI_THEMES[emojiTheme] || EMOJI_THEMES.default;
+  
+  const primaryReward = getPrimaryReward(rewardConfig);
+  const action = getActionPhrase(activityTypes, theme, isEffectsActivity);
+  const actionShort = getShortAction(activityTypes, theme, isEffectsActivity);
+  const effectCount = '3';
+  
+  const effectsOnlyPatterns = ['effects', 'no_topic', 'support', 'gift_card', 'quantified_effects'];
+  const themeRelatedPatterns = ['challenge', 'tonight', 'chat', 'ready'];
+  
+  let availablePatterns = PUSH_TITLE_PATTERNS.filter(p => {
+    if (!usedLogics.includes(p.logic)) {
+      if (!isEffectsActivity && effectsOnlyPatterns.includes(p.logic)) {
+        return false;
+      }
+      if (!isEffectsActivity && themeRelatedPatterns.includes(p.logic)) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  });
+  if (availablePatterns.length === 0) {
+    availablePatterns = PUSH_TITLE_PATTERNS.filter(p => {
+      if (!isEffectsActivity && effectsOnlyPatterns.includes(p.logic)) {
+        return false;
+      }
+      return true;
+    });
+  }
+  if (availablePatterns.length === 0) availablePatterns = PUSH_TITLE_PATTERNS;
+  
+  const titlePattern = getRandomItem(availablePatterns);
+  
+  let availableContents = PUSH_CONTENT_PATTERNS.filter(c => {
+    if (!isEffectsActivity && (c.includes('{theme}') || c.includes('effects') || c.includes('gear') || c.includes('team'))) {
+      return false;
+    }
+    return true;
+  });
+  if (availableContents.length === 0) availableContents = PUSH_CONTENT_PATTERNS;
+  const contentPattern = getRandomItem(availableContents);
+  
+  const emoji = getRandomItem(emojis);
+
+  let title = titlePattern.template
+    .replace(/{emoji}/g, emoji)
+    .replace(/{reward_value}/g, primaryReward.value)
+    .replace(/{reward_type}/g, primaryReward.type.toLowerCase() + ' reward')
+    .replace(/{action}/g, action)
+    .replace(/{action_short}/g, actionShort)
+    .replace(/{theme}/g, theme.name)
+    .replace(/{effect_count}/g, effectCount)
+    .replace(/{secondary_reward}/g, getSecondaryReward(rewardConfig))
+    .replace(/{activity_name}/g, activityName);
+
+  title = title.charAt(0).toUpperCase() + title.slice(1);
+  title = title.replace(/\bgo LIVE\b/g, 'Go LIVE');
+
+  let content = contentPattern
+    .replace(/{action}/g, action)
+    .replace(/{action_short}/g, actionShort)
+    .replace(/{reward_value}/g, primaryReward.value)
+    .replace(/{reward_action}/g, 'share ' + primaryReward.value)
+    .replace(/{theme}/g, theme.name)
+    .replace(/{effect_count}/g, effectCount)
+    .replace(/{activity_name}/g, activityName);
+
+  if (!isEffectsActivity) {
+    content = content.replace(/effects/g, '');
+    content = content.replace(/gear/g, '');
+    content = content.replace(/Wear /g, '');
+    content = content.replace(/Use /g, '');
+    content = content.replace(/cool /g, '');
+    content = content.replace(/Put on your \w+ on LIVE!/g, 'Ready to go LIVE?');
+    content = content.replace(/Put on \w+/g, 'Go LIVE');
+    content = content.replace(/about \w+/g, '');
+    content = content.replace(/with \w+ effects?/g, '');
+    content = content.replace(/with \w+/g, '');
+    content = content.replace(/Choose from \d+ \w+/g, 'Choose to');
+    content = content.replace(/tonight with \w+/g, 'tonight');
+    content = content.replace(/Show love for your favorite team on LIVE/g, 'Show off on LIVE');
+    content = content.replace(/Connect fans on \w+/g, 'Connect with fans');
+    content = content.replace(/on \w+ Event/g, '');
+    content = content.replace(/Live Event/g, '');
+    content = content.replace(/chat ,/g, 'chat,');
+    content = content.replace(/ +,/g, ',');
+  }
+
+  content = content.replace(/go LIVE/g, 'Go LIVE');
+  content = content.replace(/  +/g, ' ');
+  content = content.replace(/^ /, '');
+  content = content.replace(/ $/, '');
+
+  return {
+    title: title,
+    content: content,
+    hook: primaryReward.display,
+    logic: titlePattern.logic,
+    targetAudience: audience || 'All Creators'
+  };
+}
+
+function generateNotice(activityName, duration, rewardConfig, audience, activityTypes, emojiTheme, cases, usedLogics = []) {
+  const isEffectsActivity = activityTypes.includes('effects_activity');
+  const theme = detectTheme(activityName, '', '');
+  const emojis = EMOJI_THEMES[emojiTheme] || EMOJI_THEMES.default;
+  const primaryReward = getPrimaryReward(rewardConfig);
+  const action = getActionPhrase(activityTypes, theme, isEffectsActivity);
+  const effectCount = '3';
+  const effectList = theme.effect_names.join(', ');
+
+  let availablePatterns = NOTICE_TITLE_PATTERNS.filter(p => {
+    if (!usedLogics.includes(p.logic)) {
+      if (!isEffectsActivity && (p.logic === 'choice' || p.logic === 'pride' || p.logic === 'gear' || p.logic === 'simple' || p.logic === 'gift' || p.logic === 'exclusive' || p.logic === 'question' || p.logic === 'tonight')) {
+        return false;
+      }
+      return true;
+    }
+    return false;
+  });
+  if (availablePatterns.length === 0) {
+    availablePatterns = NOTICE_TITLE_PATTERNS.filter(p => {
+      if (!isEffectsActivity && (p.logic === 'choice' || p.logic === 'pride' || p.logic === 'gear' || p.logic === 'simple' || p.logic === 'gift' || p.logic === 'exclusive' || p.logic === 'question' || p.logic === 'tonight')) {
+        return false;
+      }
+      return true;
+    });
+  }
+  if (availablePatterns.length === 0) availablePatterns = NOTICE_TITLE_PATTERNS;
+
+  const titlePattern = getRandomItem(availablePatterns);
+  
+  let availableIntros = NOTICE_INTROS.filter(i => {
+    if (!isEffectsActivity && (i.includes('{theme}') || i.includes('gear') || i.includes('carnival'))) {
+      return false;
+    }
+    return true;
+  });
+  if (availableIntros.length === 0) availableIntros = NOTICE_INTROS;
+  const intro = getRandomItem(availableIntros);
+  
+  const middles = isEffectsActivity ? NOTICE_MIDDLES.effects : NOTICE_MIDDLES.general;
+  const middle = getRandomItem(middles);
+  
+  let availableCtas = NOTICE_CTAS.filter(c => {
+    if (!isEffectsActivity && c.includes('{theme}')) {
+      return false;
+    }
+    return true;
+  });
+  if (availableCtas.length === 0) availableCtas = NOTICE_CTAS;
+  const cta = getRandomItem(availableCtas);
+  const emoji = getRandomItem(emojis);
+
+  let title = titlePattern.template
+    .replace(/{emoji}/g, emoji)
+    .replace(/{reward_value}/g, primaryReward.value)
+    .replace(/{reward_type}/g, primaryReward.type.toLowerCase() + ' reward')
+    .replace(/{secondary_reward}/g, getSecondaryReward(rewardConfig))
+    .replace(/{action}/g, action)
+    .replace(/{theme}/g, theme.name)
+    .replace(/{effect_count}/g, effectCount)
+    .replace(/{activity_name}/g, activityName);
+
+  title = title.charAt(0).toUpperCase() + title.slice(1);
+  title = title.replace(/\bgo LIVE\b/g, 'Go LIVE');
+
+  let contentIntro = intro.replace(/{theme}/g, theme.name).replace(/{activity_name}/g, activityName);
+  let contentMiddle = middle.replace(/{theme}/g, theme.name)
+    .replace(/{effect_count}/g, effectCount)
+    .replace(/{effect_list}/g, effectList)
+    .replace(/{activity_name}/g, activityName)
+    .replace(/{duration_value}/g, duration + ' min');
+  let contentReward = buildRewardText(rewardConfig);
+  let contentCta = cta.replace(/{theme}/g, theme.name).replace(/{activity_name}/g, activityName);
+
+  if (!contentIntro.includes(activityName) && !contentMiddle.includes(activityName)) {
+    contentMiddle = contentMiddle.replace(/to join!/g, 'to join ' + activityName + '!');
+    if (!contentMiddle.includes(activityName)) {
+      contentMiddle = 'Join ' + activityName + ' and ' + contentMiddle;
+    }
+  }
+
+  const content = [
+    contentIntro,
+    contentMiddle,
+    contentReward,
+    contentCta
+  ].join(' ').replace(/  +/g, ' ').replace(/^ /, '').replace(/ $/, '');
+
+  return {
+    title: title,
+    content: content,
+    hook: primaryReward.display,
+    logic: titlePattern.logic,
+    targetAudience: audience || 'All Creators'
+  };
+}
+
+function getPrimaryReward(rewardConfig) {
+  if (rewardConfig.diamondPool) {
+    return { type: 'Diamonds', value: rewardConfig.diamondPool + ' diamonds', display: rewardConfig.diamondPool + ' Diamonds' };
+  }
+  if (rewardConfig.leaderboard && rewardConfig.leaderboard.type === 'diamonds') {
+    return { type: 'Diamonds', value: rewardConfig.leaderboard.value + ' diamonds', display: 'Top1: ' + rewardConfig.leaderboard.value + ' Diamonds' };
+  }
+  if (rewardConfig.luckyDraw) {
+    if (rewardConfig.luckyDraw.type === 'gift_card') {
+      return { type: 'Gift card', value: rewardConfig.luckyDraw.value, display: rewardConfig.luckyDraw.value + ' Gift Card' };
+    } else {
+      return { type: 'Diamonds', value: rewardConfig.luckyDraw.value + ' diamonds', display: rewardConfig.luckyDraw.value + ' Diamonds' };
+    }
+  }
+  if (rewardConfig.trafficBoost) {
+    return { type: 'Traffic', value: 'traffic boost', display: 'Traffic Boost' };
+  }
+  if (rewardConfig.leaderboard && rewardConfig.leaderboard.type === 'traffic') {
+    return { type: 'Traffic', value: 'traffic boost', display: 'Top1: Traffic Boost' };
+  }
+  return { type: 'Reward', value: 'amazing rewards', display: 'Amazing Rewards' };
+}
+
+function getSecondaryReward(rewardConfig) {
+  const rewards = [];
+  if (rewardConfig.diamondPool) rewards.push(rewardConfig.diamondPool + ' diamonds');
+  if (rewardConfig.leaderboard && rewardConfig.leaderboard.type === 'diamonds') rewards.push('top1 ' + rewardConfig.leaderboard.value + ' diamonds');
+  if (rewardConfig.luckyDraw && rewardConfig.luckyDraw.type === 'gift_card') rewards.push(rewardConfig.luckyDraw.value + ' gift card');
+  if (rewardConfig.luckyDraw && rewardConfig.luckyDraw.type === 'diamonds') rewards.push(rewardConfig.luckyDraw.value + ' diamonds draw');
+  if (rewardConfig.trafficBoost) rewards.push('traffic boost');
+  if (rewardConfig.leaderboard && rewardConfig.leaderboard.type === 'traffic') rewards.push('top1 traffic boost');
+  
+  if (rewards.length <= 1) return 'amazing rewards';
+  return rewards[1] || 'amazing rewards';
+}
+
+function buildRewardText(rewardConfig) {
+  const parts = [];
+  if (rewardConfig.diamondPool) {
+    parts.push(`You can share a pool of ${rewardConfig.diamondPool} diamonds`);
+  }
+  if (rewardConfig.leaderboard) {
+    if (rewardConfig.leaderboard.type === 'diamonds') {
+      parts.push(`climb the leaderboard and top 1 wins ${rewardConfig.leaderboard.value} diamonds`);
+    } else if (rewardConfig.leaderboard.type === 'traffic') {
+      parts.push(`climb the leaderboard and top 1 wins traffic boost`);
+    }
+  }
+  if (rewardConfig.luckyDraw) {
+    if (rewardConfig.luckyDraw.type === 'gift_card') {
+      parts.push(`get a lucky draw chance to win ${rewardConfig.luckyDraw.value} gift card`);
+    } else {
+      parts.push(`get a lucky draw chance to win ${rewardConfig.luckyDraw.value} diamonds`);
+    }
+  }
+  if (rewardConfig.trafficBoost) {
+    parts.push(`earn extra traffic boost`);
+  }
+  
+  if (parts.length === 0) return 'Earn amazing rewards when you complete the task!';
+  if (parts.length === 1) return parts[0] + '!';
+  if (parts.length === 2) return parts[0] + ', and ' + parts[1] + '!';
+  return parts.slice(0, -1).join(', ') + ', and ' + parts[parts.length - 1] + '!';
+}
+
+// ==================== UI RENDERING ====================
+let currentPushResults = [];
+let currentNoticeResults = [];
+
+function renderResults() {
+  renderPushResults();
+  renderNoticeResults();
+  updateExportBar();
+}
+
+function renderPushResults() {
+  const container = document.getElementById('pushResults');
+  const countEl = document.getElementById('pushCount');
+  countEl.textContent = currentPushResults.length + (currentPushResults.length === 1 ? ' item' : ' items');
+
+  if (currentPushResults.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📝</div>
+        <p>Enter activity details and click generate<br>Smart, eye-catching push copy will appear here</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = currentPushResults.map((item, idx) => `
+    <div class="text-card push" data-id="${item.id}">
+      <div class="text-card-header">
+        <div class="text-card-title">${escapeHtml(item.title)}</div>
+        <div class="text-card-actions">
+          <button class="icon-btn copy" onclick="copyText('${item.id}', 'push')" title="Copy">📋</button>
+          <button class="icon-btn refresh" onclick="regenerateSingle('${item.id}', 'push')" title="Regenerate">🔄</button>
+          <button class="icon-btn delete" onclick="deleteResult('${item.id}', 'push')" title="Delete">🗑️</button>
+        </div>
+      </div>
+      <div class="text-card-body">${escapeHtml(item.content)}</div>
+      <div class="text-card-footer">
+        <div class="text-card-meta">
+          <span class="meta-tag hook">💎 ${escapeHtml(item.hook)}</span>
+          <span class="meta-tag audience">👥 ${escapeHtml(item.targetAudience)}</span>
+          <span class="meta-tag logic">🎯 ${escapeHtml(item.logic)}</span>
+        </div>
+        <label class="checkbox-wrapper">
+          <input type="checkbox" ${item.selected ? 'checked' : ''} onchange="toggleSelect('${item.id}', 'push')">
+          <span>Export</span>
+        </label>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderNoticeResults() {
+  const container = document.getElementById('noticeResults');
+  const countEl = document.getElementById('noticeCount');
+  countEl.textContent = currentNoticeResults.length + (currentNoticeResults.length === 1 ? ' item' : ' items');
+
+  if (currentNoticeResults.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">✉️</div>
+        <p>Enter activity details and click generate<br>Detailed in-app notice copy will appear here</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = currentNoticeResults.map(item => `
+    <div class="text-card notice" data-id="${item.id}">
+      <div class="text-card-header">
+        <div class="text-card-title">${escapeHtml(item.title)}</div>
+        <div class="text-card-actions">
+          <button class="icon-btn copy" onclick="copyText('${item.id}', 'notice')" title="Copy">📋</button>
+          <button class="icon-btn refresh" onclick="regenerateSingle('${item.id}', 'notice')" title="Regenerate">🔄</button>
+          <button class="icon-btn delete" onclick="deleteResult('${item.id}', 'notice')" title="Delete">🗑️</button>
+        </div>
+      </div>
+      <div class="text-card-body" style="white-space: pre-line;">${escapeHtml(item.content)}</div>
+      <div class="text-card-footer">
+        <div class="text-card-meta">
+          <span class="meta-tag hook">💎 ${escapeHtml(item.hook)}</span>
+          <span class="meta-tag audience">👥 ${escapeHtml(item.targetAudience)}</span>
+          <span class="meta-tag logic">🎯 ${escapeHtml(item.logic)}</span>
+        </div>
+        <label class="checkbox-wrapper">
+          <input type="checkbox" ${item.selected ? 'checked' : ''} onchange="toggleSelect('${item.id}', 'notice')">
+          <span>Export</span>
+        </label>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderSkeleton(type, count) {
+  const container = type === 'push' ? document.getElementById('pushResults') : document.getElementById('noticeResults');
+  let html = '';
+  for (let i = 0; i < Math.min(count, 5); i++) {
+    html += `
+      <div class="skeleton-card">
+        <div class="skeleton-line medium"></div>
+        <div class="skeleton-line long"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line short"></div>
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+}
+
+// ==================== INTERACTIONS ====================
+let generationCount = 10;
+let selectedActivityTypes = ['cash_promotion'];
+let selectedEmojiTheme = 'default';
+
+function initTabs() {
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      const pageId = 'page-' + tab.dataset.page;
+      document.getElementById(pageId).classList.add('active');
+      
+      if (tab.dataset.page === 'cases') {
+        renderCases();
+      }
+    });
+  });
+}
+
+function initAudienceTags() {
+  document.querySelectorAll('#audienceTags .tag-item').forEach(tag => {
+    tag.addEventListener('click', () => {
+      tag.classList.toggle('selected');
+    });
+  });
+}
+
+function initActivityTypeTags() {
+  const mainTypes = document.querySelectorAll('#activityMainTypes .activity-main-type');
+  mainTypes.forEach(tag => {
+    tag.addEventListener('click', () => {
+      mainTypes.forEach(t => t.classList.remove('selected'));
+      tag.classList.add('selected');
+      const mainType = tag.dataset.type;
+      selectedActivityTypes = [mainType];
+      updateTaskPreview();
+    });
+  });
+  mainTypes[1].classList.add('selected');
+}
+
+function updateTaskPreview() {
+  const duration = document.getElementById('liveDuration').value || 10;
+  const isEffects = selectedActivityTypes.includes('effects_activity');
+  const preview = document.getElementById('taskPreview');
+  if (isEffects) {
+    preview.textContent = `Go LIVE with effects for ${duration} mins`;
+  } else {
+    preview.textContent = `Go LIVE for ${duration} mins`;
+  }
+}
+
+function getRewardConfig() {
+  const config = {
+    diamondPool: null,
+    leaderboard: null,
+    luckyDraw: null,
+    trafficBoost: false
+  };
+
+  if (document.getElementById('rewardDiamondPool').checked) {
+    const amount = document.getElementById('diamondPoolAmount').value.trim();
+    if (amount) config.diamondPool = amount;
+  }
+
+  if (document.getElementById('rewardLeaderboard').checked) {
+    const type = document.querySelector('input[name="leaderboardType"]:checked')?.value;
+    if (type === 'diamonds') {
+      const diamonds = document.getElementById('leaderboardDiamonds').value.trim();
+      if (diamonds) config.leaderboard = { type: 'diamonds', value: diamonds };
+    } else if (type === 'traffic') {
+      config.leaderboard = { type: 'traffic' };
+    }
+  }
+
+  if (document.getElementById('rewardLuckyDraw').checked) {
+    const type = document.querySelector('input[name="drawType"]:checked')?.value;
+    if (type === 'gift_card') {
+      const value = document.getElementById('drawGiftCard').value.trim();
+      if (value) config.luckyDraw = { type: 'gift_card', value };
+    } else if (type === 'diamonds') {
+      const value = document.getElementById('drawDiamonds').value.trim();
+      if (value) config.luckyDraw = { type: 'diamonds', value };
+    }
+  }
+
+  if (document.getElementById('rewardTraffic').checked) {
+    config.trafficBoost = true;
+  }
+
+  return config;
+}
+
+function hasAnyReward(rewardConfig) {
+  return rewardConfig.diamondPool || rewardConfig.leaderboard || rewardConfig.luckyDraw || rewardConfig.trafficBoost;
+}
+
+function getTaskRequirementText() {
+  const duration = document.getElementById('liveDuration').value || 10;
+  const isEffects = selectedActivityTypes.includes('effects_activity');
+  if (isEffects) {
+    return `Go LIVE with effects for ${duration} mins`;
+  }
+  return `Go LIVE for ${duration} mins`;
+}
+
+function initDurationInput() {
+  const durationInput = document.getElementById('liveDuration');
+  durationInput.value = 10;
+  durationInput.addEventListener('input', updateTaskPreview);
+}
+
+function initEmojiTags() {
+  document.querySelectorAll('#emojiTags .tag-item').forEach(tag => {
+    tag.addEventListener('click', () => {
+      document.querySelectorAll('#emojiTags .tag-item').forEach(t => t.classList.remove('selected'));
+      tag.classList.add('selected');
+      selectedEmojiTheme = tag.dataset.value;
+    });
+  });
+}
+
+function getSelectedAudiences() {
+  return Array.from(document.querySelectorAll('#audienceTags .tag-item.selected'))
+    .map(el => el.dataset.value);
+}
+
+function initCountBtns() {
+  document.querySelectorAll('#countBtns .count-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#countBtns .count-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      generationCount = parseInt(btn.dataset.count);
+    });
+  });
+}
+
+function initGenerateBtn() {
+  const btn = document.getElementById('generateBtn');
+  btn.addEventListener('click', async () => {
+    const activityName = document.getElementById('activityName').value.trim();
+    const duration = document.getElementById('liveDuration').value || 10;
+    const rewardConfig = getRewardConfig();
+
+    if (!activityName) {
+      showToast('Please fill in activity name', 'error');
+      return;
+    }
+    if (!hasAnyReward(rewardConfig)) {
+      showToast('Please select at least one reward type', 'error');
+      return;
+    }
+
+    btn.classList.add('loading');
+    btn.querySelector('.btn-text').textContent = 'Generating...';
+    
+    renderSkeleton('push', generationCount);
+    renderSkeleton('notice', generationCount);
+
+    await new Promise(resolve => setTimeout(resolve, 700 + Math.random() * 400));
+
+    const pushResults = [];
+    const noticeResults = [];
+    const audiences = getSelectedAudiences();
+    const audienceList = audiences.length > 0 ? audiences : ['All Creators'];
+    const cases = loadCases();
+    const usedPushLogics = [];
+    const usedNoticeLogics = [];
+
+    for (let i = 0; i < generationCount; i++) {
+      const audience = audienceList[i % audienceList.length];
+      
+      const pushItem = generatePush(activityName, duration, rewardConfig, audience, selectedActivityTypes, selectedEmojiTheme, cases, usedPushLogics);
+      usedPushLogics.push(pushItem.logic);
+      pushResults.push({
+        id: 'push_' + Date.now() + '_' + i,
+        type: 'push',
+        ...pushItem,
+        selected: true
+      });
+
+      const noticeItem = generateNotice(activityName, duration, rewardConfig, audience, selectedActivityTypes, selectedEmojiTheme, cases, usedNoticeLogics);
+      usedNoticeLogics.push(noticeItem.logic);
+      noticeResults.push({
+        id: 'notice_' + Date.now() + '_' + i,
+        type: 'notice',
+        ...noticeItem,
+        selected: true
+      });
+    }
+
+    currentPushResults = pushResults;
+    currentNoticeResults = noticeResults;
+
+    renderResults();
+
+    btn.classList.remove('loading');
+    btn.querySelector('.btn-text').textContent = '🚀 Generate Copy';
+    showToast('Copy generated successfully!');
+  });
+}
+
+function copyText(id, type) {
+  const list = type === 'push' ? currentPushResults : currentNoticeResults;
+  const item = list.find(i => i.id === id);
+  if (item) {
+    const fullText = item.title + '\n\n' + item.content;
+    navigator.clipboard.writeText(fullText).then(() => {
+      showToast('Copied to clipboard!');
+    }).catch(() => {
+      showToast('Copy failed, please copy manually', 'error');
+    });
+  }
+}
+
+function regenerateSingle(id, type) {
+  const activityName = document.getElementById('activityName').value.trim();
+  const duration = document.getElementById('liveDuration').value || 10;
+  const rewardConfig = getRewardConfig();
+  const cases = loadCases();
+
+  const list = type === 'push' ? currentPushResults : currentNoticeResults;
+  const index = list.findIndex(i => i.id === id);
+  
+  if (index !== -1 && activityName && hasAnyReward(rewardConfig)) {
+    const audience = list[index].targetAudience;
+    const newItem = type === 'push' 
+      ? generatePush(activityName, duration, rewardConfig, audience, selectedActivityTypes, selectedEmojiTheme, cases)
+      : generateNotice(activityName, duration, rewardConfig, audience, selectedActivityTypes, selectedEmojiTheme, cases);
+    
+    list[index] = { ...list[index], ...newItem };
+    renderResults();
+    showToast('Regenerated!');
+  }
+}
+
+function deleteResult(id, type) {
+  if (type === 'push') {
+    currentPushResults = currentPushResults.filter(i => i.id !== id);
+  } else {
+    currentNoticeResults = currentNoticeResults.filter(i => i.id !== id);
+  }
+  renderResults();
+}
+
+function toggleSelect(id, type) {
+  const list = type === 'push' ? currentPushResults : currentNoticeResults;
+  const item = list.find(i => i.id === id);
+  if (item) {
+    item.selected = !item.selected;
+    updateExportBar();
+  }
+}
+
+function toggleSelectAll() {
+  const all = [...currentPushResults, ...currentNoticeResults];
+  const allSelected = all.every(i => i.selected);
+  all.forEach(i => i.selected = !allSelected);
+  renderResults();
+}
+
+function updateExportBar() {
+  const all = [...currentPushResults, ...currentNoticeResults];
+  const selected = all.filter(i => i.selected);
+  const bar = document.getElementById('exportBar');
+  const countEl = document.getElementById('selectedCount');
+
+  if (all.length > 0) {
+    bar.classList.remove('hidden');
+    countEl.textContent = selected.length;
+  } else {
+    bar.classList.add('hidden');
+  }
+}
+
+// ==================== EXPORT ====================
+function getSelectedData() {
+  const activityName = document.getElementById('activityName').value.trim();
+  const all = [...currentPushResults, ...currentNoticeResults];
+  return all.filter(i => i.selected).map(item => ({
+    'Type': item.type === 'push' ? 'Push' : 'Notice',
+    'Title': item.title,
+    'Content': item.content,
+    'Hook': item.hook,
+    'Logic': item.logic,
+    'Target Audience': item.targetAudience,
+    'Activity Name': activityName
+  }));
+}
+
+function exportExcel() {
+  const data = getSelectedData();
+  if (data.length === 0) {
+    showToast('Please select items to export first', 'error');
+    return;
+  }
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Live Copy');
+
+  ws['!cols'] = [
+    { wch: 10 },
+    { wch: 45 },
+    { wch: 70 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 25 }
+  ];
+
+  const activityName = document.getElementById('activityName').value.trim() || 'live_copy';
+  const safeName = activityName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  XLSX.writeFile(wb, safeName + '_copy_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  showToast('Excel exported successfully!');
+}
+
+function exportCSV() {
+  const data = getSelectedData();
+  if (data.length === 0) {
+    showToast('Please select items to export first', 'error');
+    return;
+  }
+
+  const headers = Object.keys(data[0]);
+  const csvContent = [
+    headers.join(','),
+    ...data.map(row => 
+      headers.map(h => {
+        const val = String(row[h] || '').replace(/"/g, '""');
+        return val.includes(',') || val.includes('\n') ? `"${val}"` : val;
+      }).join(',')
+    )
+  ].join('\n');
+
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const activityName = document.getElementById('activityName').value.trim() || 'live_copy';
+  const safeName = activityName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+  link.href = URL.createObjectURL(blob);
+  link.download = safeName + '_copy_' + new Date().toISOString().slice(0, 10) + '.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast('CSV exported successfully!');
+}
+
+// ==================== CASE LIBRARY ====================
+let editingCaseId = null;
+let currentRating = 0;
+
+function renderCases() {
+  const cases = loadCases();
+  const grid = document.getElementById('casesGrid');
+  const countEl = document.getElementById('casesCount');
+  countEl.textContent = cases.length + (cases.length === 1 ? ' case' : ' cases');
+
+  if (cases.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1/-1;">
+        <div class="empty-state-icon">📖</div>
+        <p>No cases yet. Add some high-performing examples!<br>More cases = more tailored copy generation</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = cases.map(c => `
+    <div class="case-card" onclick="editCase('${c.id}')">
+      <div class="case-card-header">
+        <div class="case-name">${escapeHtml(c.activity.name)}</div>
+      </div>
+      <div class="case-tags">
+        ${c.activity.types ? c.activity.types.map(t => `<span class="case-tag">${t}</span>`).join('') : ''}
+        ${c.rating ? `<span class="case-tag">${'⭐'.repeat(c.rating)}</span>` : ''}
+      </div>
+      <div class="case-preview">
+        <div class="case-preview-label">Push Example</div>
+        <div class="case-preview-title">${escapeHtml(c.pushItems[0]?.title || 'N/A')}</div>
+        <div class="case-preview-text">${escapeHtml(c.pushItems[0]?.content || 'No content')}</div>
+      </div>
+      <div class="case-preview">
+        <div class="case-preview-label">Notice Example</div>
+        <div class="case-preview-title">${escapeHtml(c.noticeItems[0]?.title || 'N/A')}</div>
+        <div class="case-preview-text">${escapeHtml(c.noticeItems[0]?.content || 'No content')}</div>
+      </div>
+      <div class="case-card-footer">
+        <span class="case-date">${new Date(c.createdAt).toLocaleDateString()}</span>
+        <div class="case-card-actions">
+          <button class="icon-btn delete" onclick="event.stopPropagation(); deleteCase('${c.id}')" title="Delete">🗑️</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCaseModal(caseData = null) {
+  editingCaseId = caseData ? caseData.id : null;
+  currentRating = caseData?.rating || 0;
+
+  document.getElementById('modalTitle').textContent = caseData ? 'Edit Case' : 'Add Case';
+  document.getElementById('caseActivityName').value = caseData?.activity?.name || '';
+  document.getElementById('caseActivityType').value = caseData?.activity?.types?.join(', ') || '';
+  document.getElementById('caseTaskRequirement').value = caseData?.activity?.taskRequirement || '';
+  document.getElementById('caseRewardRule').value = caseData?.activity?.rewardRule || '';
+  document.getElementById('caseAudience').value = caseData?.activity?.targetAudience?.join(', ') || '';
+  
+  document.getElementById('casePushTexts').value = caseData?.pushItems 
+    ? caseData.pushItems.map(p => p.title + ' | ' + p.content).join('\n') 
+    : '';
+  document.getElementById('caseNoticeTexts').value = caseData?.noticeItems 
+    ? caseData.noticeItems.map(p => p.title + ' | ' + p.content).join('\n') 
+    : '';
+
+  document.querySelectorAll('#ratingTags .tag-item').forEach(tag => {
+    const rating = parseInt(tag.dataset.rating);
+    tag.classList.toggle('selected', rating <= currentRating);
+  });
+
+  document.getElementById('caseModal').classList.add('show');
+}
+
+function closeCaseModal() {
+  document.getElementById('caseModal').classList.remove('show');
+  editingCaseId = null;
+  currentRating = 0;
+}
+
+function editCase(id) {
+  const cases = loadCases();
+  const caseData = cases.find(c => c.id === id);
+  if (caseData) {
+    openCaseModal(caseData);
+  }
+}
+
+function parseCopyText(text) {
+  const lines = text.trim().split('\n').filter(line => line.trim());
+  return lines.map(line => {
+    const parts = line.split('|');
+    return {
+      title: parts[0]?.trim() || '',
+      content: parts[1]?.trim() || parts[0]?.trim() || ''
+    };
+  }).filter(item => item.title || item.content);
+}
+
+function saveCase() {
+  const name = document.getElementById('caseActivityName').value.trim();
+  const typeStr = document.getElementById('caseActivityType').value.trim();
+  const taskReq = document.getElementById('caseTaskRequirement').value.trim();
+  const rewardRule = document.getElementById('caseRewardRule').value.trim();
+  const audienceStr = document.getElementById('caseAudience').value.trim();
+  const pushText = document.getElementById('casePushTexts').value.trim();
+  const noticeText = document.getElementById('caseNoticeTexts').value.trim();
+
+  if (!name) {
+    showToast('Please enter activity name', 'error');
+    return;
+  }
+  
+  const pushItems = parseCopyText(pushText);
+  const noticeItems = parseCopyText(noticeText);
+  
+  if (pushItems.length === 0 && noticeItems.length === 0) {
+    showToast('Please add at least one push or notice copy', 'error');
+    return;
+  }
+
+  const types = typeStr ? typeStr.split(/[、,，\s]+/).filter(a => a) : [];
+  const audiences = audienceStr ? audienceStr.split(/[、,，\s]+/).filter(a => a) : ['All Streamers'];
+  const cases = loadCases();
+
+  const caseData = {
+    id: editingCaseId || 'case_' + Date.now(),
+    activity: {
+      id: 'act_' + Date.now(),
+      name,
+      taskRequirement: taskReq,
+      rewardRule: rewardRule,
+      targetAudience: audiences,
+      types: types
+    },
+    pushItems,
+    noticeItems,
+    rating: currentRating,
+    createdAt: editingCaseId ? cases.find(c => c.id === editingCaseId)?.createdAt : Date.now()
+  };
+
+  if (editingCaseId) {
+    const index = cases.findIndex(c => c.id === editingCaseId);
+    if (index !== -1) cases[index] = caseData;
+  } else {
+    cases.unshift(caseData);
+  }
+
+  saveCases(cases);
+  closeCaseModal();
+  renderCases();
+  showToast(editingCaseId ? 'Case updated!' : 'Case added successfully!');
+}
+
+function deleteCase(id) {
+  if (!confirm('Delete this case?')) return;
+  const cases = loadCases().filter(c => c.id !== id);
+  saveCases(cases);
+  renderCases();
+  showToast('Case deleted');
+}
+
+function importCases() {
+  document.getElementById('importFile').click();
+}
+
+function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  
+  if (file.name.endsWith('.json')) {
+    reader.onload = function(e) {
+      try {
+        const data = JSON.parse(e.target.result);
+        const cases = loadCases();
+        const newCases = Array.isArray(data) ? data : [data];
+        newCases.forEach(c => {
+          c.id = 'case_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          c.createdAt = Date.now();
+        });
+        saveCases([...cases, ...newCases]);
+        renderCases();
+        showToast(`Imported ${newCases.length} cases successfully!`);
+      } catch (err) {
+        showToast('Import failed, please check file format', 'error');
+      }
+    };
+    reader.readAsText(file);
+  } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws);
+        
+        const cases = loadCases();
+        json.forEach(row => {
+          cases.push({
+            id: 'case_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+            activity: {
+              id: 'act_' + Date.now(),
+              name: row['Activity Name'] || row['activity'] || 'Untitled',
+              taskRequirement: row['Task Requirement'] || row['task'] || '',
+              rewardRule: row['Reward Rules'] || row['reward'] || '',
+              targetAudience: (row['Target Audience'] || row['audience'] || 'All Streamers').toString().split(/[、,，\s]+/).filter(a => a),
+              types: []
+            },
+            pushItems: [{ title: row['Push Title'] || '', content: row['Push Content'] || '' }].filter(p => p.title || p.content),
+            noticeItems: [{ title: row['Notice Title'] || '', content: row['Notice Content'] || '' }].filter(p => p.title || p.content),
+            rating: parseInt(row['Rating'] || row['rating']) || 0,
+            createdAt: Date.now()
+          });
+        });
+        
+        saveCases(cases);
+        renderCases();
+        showToast(`Imported ${json.length} cases successfully!`);
+      } catch (err) {
+        showToast('Import failed, please check file format', 'error');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  event.target.value = '';
+}
+
+function initRatingTags() {
+  document.querySelectorAll('#ratingTags .tag-item').forEach(tag => {
+    tag.addEventListener('click', () => {
+      currentRating = parseInt(tag.dataset.rating);
+      document.querySelectorAll('#ratingTags .tag-item').forEach(t => {
+        const rating = parseInt(t.dataset.rating);
+        t.classList.toggle('selected', rating <= currentRating);
+      });
+    });
+  });
+}
+
+// ==================== TOAST ====================
+function showToast(message, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = (type === 'success' ? '✅ ' : '❌ ') + message;
+  toast.className = 'toast ' + (type === 'error' ? 'error' : '');
+  toast.classList.add('show');
+  
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 2500);
+}
+
+// ==================== INIT ====================
+function init() {
+  initTabs();
+  initAudienceTags();
+  initActivityTypeTags();
+  initDurationInput();
+  initEmojiTags();
+  initCountBtns();
+  initGenerateBtn();
+  initRatingTags();
+  updateTaskPreview();
+
+  document.getElementById('caseModal').addEventListener('click', (e) => {
+    if (e.target.id === 'caseModal') {
+      closeCaseModal();
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
